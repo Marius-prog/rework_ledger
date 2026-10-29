@@ -7,6 +7,7 @@
     "start": "tsx src/server.ts",
     "migrate": "tsx src/db/migrate.ts",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
+    "backfill": "tsx scripts/backfill.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
