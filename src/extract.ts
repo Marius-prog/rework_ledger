@@ -65,5 +65,7 @@ export async function extractCorrections(db: pg.Pool, repoId: number, prNumber: 
        redact(root.diff_hunk), redact(after.text), fix.sha, root.created_at]);
     stored += res.rowCount ?? 0;
   }
+  // Patches are only needed to build corrections. Drop them now. They can be re-fetched if extraction ever re-runs.
+  await db.query("DELETE FROM commit_files WHERE repo_id=$1 AND sha IN (SELECT sha FROM pr_commits WHERE repo_id=$1 AND pr_number=$2)", [repoId, prNumber]);
   return stored;
 }

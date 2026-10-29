@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { detectAgent } from "./detect.js";
+import { redact } from "./redact.js";
 
 type Db = pg.Pool | pg.PoolClient;
 
@@ -47,7 +48,7 @@ export async function storeReviewComment(db: Db, repoId: number, prNumber: numbe
     `INSERT INTO review_comments (id, repo_id, pr_number, reviewer_login, in_reply_to_id, path, diff_hunk, body, commit_sha, created_at, line, reviewer_type)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO UPDATE SET body=$8`,
     [c.id, repoId, prNumber, c.user.login, c.in_reply_to_id ?? null, c.path ?? null,
-     c.diff_hunk ?? null, c.body, c.commit_id ?? null, c.created_at, c.original_line ?? c.line ?? null, c.user.type ?? null]);
+     c.diff_hunk == null ? null : redact(c.diff_hunk), redact(c.body ?? ""), c.commit_id ?? null, c.created_at, c.original_line ?? c.line ?? null, c.user.type ?? null]);
 }
 
 export async function storePush(db: Db, repoId: number, payload: any) {

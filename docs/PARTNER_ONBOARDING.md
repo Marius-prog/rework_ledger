@@ -22,10 +22,10 @@ Not requested at install: write access to contents and pull requests. Opening an
 
 - **PR metadata:** author login, title, labels, branch, size, state.
 - **Review data:** review comment text, the diff hunk each comment was left on, review states.
-- **Commits:** messages, and per-file patches only for commits made after a human review comment on an agent PR.
-- **Corrections:** a human comment paired with the commit that fixed it. Secrets, tokens, emails, and database URLs are redacted, and snippets are capped at 4,000 characters.
+- **Commits:** messages. Per-file patches are fetched only for commits made after a human review comment on an agent PR, and they are deleted as soon as correction extraction finishes.
+- **Corrections:** a human comment paired with the commit that fixed it.
 
-Redaction applies to corrections. Raw review-comment hunks and commit patches are stored as received. Redaction is pattern based and will miss some secrets.
+Secrets, tokens, emails, and database URLs are redacted from review comments, review hunks, and corrections before they are stored, and each is capped at 4,000 characters. Redaction is pattern based and will miss some secrets. Commit messages are stored as received.
 
 We do not read or store your full source tree, issues, or repos you did not select.
 

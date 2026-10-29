@@ -35,6 +35,27 @@ describe("extractCorrections", () => {
     expect(c.after_hunk.startsWith("@@ -10,8")).toBe(true); // picks the hunk covering line 11, not the import hunk
   });
 
+  it("deletes raw commit patches once extraction has run", async () => {
+    expect((await pool.query("SELECT count(*)::int c FROM commit_files")).rows[0].c).toBeGreaterThan(0);
+    await extractCorrections(pool, repo.id, pr.number);
+    expect((await pool.query("SELECT count(*)::int c FROM commit_files")).rows[0].c).toBe(0);
+  });
+
+  it("redacts secrets in raw review hunks and comments at ingest", async () => {
+    await storeReviewComment(pool, repo.id, pr.number, { id: 777, user: { login: "bob", type: "User" }, path: "a.ts",
+      diff_hunk: '@@\n+const k = "sk_live_abcdefghijklmnop1234";', body: "token: ghp_abcdefghijklmnopqrstuvwx", created_at: "2025-10-10T12:00:00Z" });
+    const row = (await pool.query("SELECT diff_hunk, body FROM review_comments WHERE id=777")).rows[0];
+    expect(row.diff_hunk).not.toContain("sk_live_");
+    expect(row.body).not.toContain("ghp_");
+  });
+
+  it("re-extraction after patches were deleted re-fetches and does not duplicate", async () => {
+    await extractCorrections(pool, repo.id, pr.number);
+    await syncPrCommits(reader, repo, pr.number);
+    expect(await extractCorrections(pool, repo.id, pr.number)).toBe(0);
+    expect((await pool.query("SELECT count(*)::int c FROM corrections")).rows[0].c).toBe(1);
+  });
+
   it("ignores AI reviewer comments", async () => {
     await pool.query("UPDATE review_comments SET reviewer_login='Copilot', reviewer_type='Bot' WHERE id=101");
     expect(await extractCorrections(pool, repo.id, pr.number)).toBe(0);
