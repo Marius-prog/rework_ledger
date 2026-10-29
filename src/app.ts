@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { pool } from "./db/pool.js";
 import { landing } from "./landing.js";
+import { dashboard } from "./dashboard.js";
 import { handleEvent, verifySignature, type Backfill } from "./webhook.js";
 import { backfillInstallation, extractOnMerge } from "./githubClient.js";
 
@@ -31,3 +32,5 @@ app.post("/webhooks/github", async (c) => {
   if (!ins.rowCount) return c.text("duplicate");
   return c.text(await handleEvent(event, JSON.parse(raw), backfill, extractOnMerge));
 });
+
+app.route("/app", dashboard());

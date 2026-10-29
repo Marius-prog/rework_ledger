@@ -106,3 +106,16 @@ CREATE TABLE IF NOT EXISTS corrections (
   fix_sha text NOT NULL,
   created_at timestamptz NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS rules (
+  id serial PRIMARY KEY,
+  repo_id bigint NOT NULL,
+  title text NOT NULL,
+  body text NOT NULL,
+  status text NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate','approved','rejected')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  decided_at timestamptz,
+  exported_pr_url text
+);
+ALTER TABLE corrections ADD COLUMN IF NOT EXISTS embedding real[];
+ALTER TABLE corrections ADD COLUMN IF NOT EXISTS rule_id int REFERENCES rules(id) ON DELETE SET NULL;
