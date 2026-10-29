@@ -19,11 +19,16 @@ export function parseRule(text: string): { title: string; rule: string } | null 
   return null;
 }
 
-export interface DistillOptions { threshold?: number; minCluster?: number; maxExamples?: number }
+export interface DistillOptions { threshold?: number; minPrs?: number; minProseWords?: number; maxExamples?: number }
+
+/** Words of reviewer prose, ignoring fenced code and suggestion blocks. */
+export function proseWords(text: string): number {
+  return text.replace(/```[\s\S]*?```/g, " ").match(/[A-Za-z']{2,}/g)?.length ?? 0;
+}
 
 /** Embed new corrections, cluster unassigned ones, and create candidate rules. Returns rules created. */
 export async function distillRepo(db: pg.Pool, ai: Ai, repoId: number, opts: DistillOptions = {}): Promise<number> {
-  const { threshold = 0.8, minCluster = 2, maxExamples = 8 } = opts;
+  const { threshold = 0.8, minPrs = 2, minProseWords = 4, maxExamples = 8 } = opts;
   const text = (r: any) => `${r.file}\n${r.comment}`;
 
   const fresh = (await db.query("SELECT id, file, comment FROM corrections WHERE repo_id=$1 AND embedding IS NULL ORDER BY id", [repoId])).rows;
@@ -33,11 +38,14 @@ export async function distillRepo(db: pg.Pool, ai: Ai, repoId: number, opts: Dis
     for (let j = 0; j < batch.length; j++) await db.query("UPDATE corrections SET embedding=$2::real[] WHERE id=$1", [batch[j].id, vecs[j]]);
   }
 
+  // Only comments with real reviewer prose can form a rule. They stay available for eval export either way.
   const rows = (await db.query(
-    "SELECT id, file, comment, before_hunk, after_hunk, embedding FROM corrections WHERE repo_id=$1 AND rule_id IS NULL ORDER BY id", [repoId])).rows;
+    "SELECT id, pr_number, file, comment, before_hunk, after_hunk, embedding FROM corrections WHERE repo_id=$1 AND rule_id IS NULL ORDER BY id", [repoId]))
+    .rows.filter((r) => proseWords(r.comment) >= minProseWords);
   let created = 0;
   for (const members of cluster(rows.map((r) => r.embedding), threshold)) {
-    if (members.length < minCluster) continue;
+    // A rule is a repeated mistake, so the cluster must span several PRs, not several comments on one PR.
+    if (new Set(members.map((i) => rows[i].pr_number)).size < minPrs) continue;
     const examples = members.slice(0, maxExamples).map((i, n) =>
       `Correction ${n + 1} (${rows[i].file}):\nReviewer: ${rows[i].comment}\nFix:\n${rows[i].after_hunk}`).join("\n\n");
     const parsed = parseRule(await ai.llm.complete(SYSTEM, examples));

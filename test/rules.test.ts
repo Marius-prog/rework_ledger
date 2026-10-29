@@ -4,7 +4,7 @@ import { renderAgentsMd, START } from "../src/agentsMd.js";
 import { app } from "../src/app.js";
 import { cluster } from "../src/cluster.js";
 import { pool } from "../src/db/pool.js";
-import { distillRepo, parseRule } from "../src/distill.js";
+import { distillRepo, parseRule, proseWords } from "../src/distill.js";
 import { openRulesPr, type RepoWriter } from "../src/rulesPr.js";
 
 // Hashed bag-of-words embedding: similar wording gives similar vectors.
@@ -28,7 +28,7 @@ async function seed() {
   ];
   for (const [i, [file, comment]] of rows.entries()) {
     await pool.query(`INSERT INTO corrections (repo_id, pr_number, comment_id, file, comment, before_hunk, after_hunk, fix_sha, created_at)
-      VALUES (1, 1, $1, $2, $3, '@@ b', '@@ a', 'f', now())`, [i + 1, file, comment]);
+      VALUES (1, $4, $1, $2, $3, '@@ b', '@@ a', 'f', now())`, [i + 1, file, comment, i + 1]);
   }
 }
 beforeEach(async () => { llmCalls = []; await seed(); });
@@ -49,6 +49,20 @@ describe("distillRepo", () => {
     expect(llmCalls).toHaveLength(1);
     expect(await distillRepo(pool, ai, 1)).toBe(0);
     expect(llmCalls).toHaveLength(1);
+  });
+  it("does not make a rule from similar comments on a single PR", async () => {
+    await pool.query("UPDATE corrections SET pr_number=1");
+    expect(await distillRepo(pool, ai, 1)).toBe(0);
+    expect(llmCalls).toHaveLength(0);
+  });
+  it("ignores comments without reviewer prose", async () => {
+    await pool.query("UPDATE corrections SET comment='```suggestion\nuse billingClient\n```' WHERE id IN (SELECT id FROM corrections ORDER BY id LIMIT 2)");
+    expect(await distillRepo(pool, ai, 1)).toBe(0);
+  });
+  it("proseWords ignores code and suggestion blocks", () => {
+    expect(proseWords("```suggestion\n else\n```")).toBe(0);
+    expect(proseWords("Revert")).toBe(1);
+    expect(proseWords("Use the billing client ```ts\nfoo()\n```")).toBe(4);
   });
   it("skips clusters the model declines", async () => {
     const declining: Ai = { ...ai, llm: { complete: async () => '{"title":null,"rule":null}' } };
