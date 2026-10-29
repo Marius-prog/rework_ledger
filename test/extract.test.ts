@@ -35,6 +35,11 @@ describe("extractCorrections", () => {
     expect(c.after_hunk.startsWith("@@ -10,8")).toBe(true); // picks the hunk covering line 11, not the import hunk
   });
 
+  it("ignores AI reviewer comments", async () => {
+    await pool.query("UPDATE review_comments SET reviewer_login='Copilot', reviewer_type='Bot' WHERE id=101");
+    expect(await extractCorrections(pool, repo.id, pr.number)).toBe(0);
+  });
+
   it("is idempotent", async () => {
     await extractCorrections(pool, repo.id, pr.number);
     expect(await extractCorrections(pool, repo.id, pr.number)).toBe(0);

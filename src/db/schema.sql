@@ -153,3 +153,5 @@ ALTER TABLE installations ADD COLUMN IF NOT EXISTS trial_ends_at timestamptz;
 ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_customer_id text;
 ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
 ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_event_at timestamptz;
+
+ALTER TABLE review_comments ADD COLUMN IF NOT EXISTS reviewer_type text;

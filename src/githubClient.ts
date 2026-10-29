@@ -21,16 +21,15 @@ export function octokitFor(installationId?: number): Octokit {
 }
 
 export function readerFor(installationId: number): GitHubReader & CommitReader {
-  const o = new Octokit({
-    authStrategy: createAppAuth,
-    auth: {
-      appId: process.env.GITHUB_APP_ID!,
-      privateKey: (process.env.GITHUB_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
-      installationId,
-    },
-  });
+  const o = octokitFor(installationId);
   return {
-    listPulls: (r) => o.paginate(o.pulls.list, { ...split(r), state: "all", sort: "created", direction: "desc", per_page: 100 }),
+    async listPulls(r, since) {
+      const out: any[] = [];
+      for await (const page of o.paginate.iterator(o.pulls.list, { ...split(r), state: "all", sort: "created", direction: "desc", per_page: 100 })) {
+        for (const pr of page.data) { if (new Date(pr.created_at) < since) return out; out.push(pr); }
+      }
+      return out;
+    },
     getPull: async (r, n) => (await o.pulls.get({ ...split(r), pull_number: n })).data,
     listCommitMessages: async (r, n) => (await o.paginate(o.pulls.listCommits, { ...split(r), pull_number: n })).map((c) => c.commit.message),
     listPrCommits: async (r, n) => (await o.paginate(o.pulls.listCommits, { ...split(r), pull_number: n }))

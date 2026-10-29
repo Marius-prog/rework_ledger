@@ -9,6 +9,7 @@
     "stripe:setup": "tsx scripts/stripe-setup.ts",
     "backfill": "tsx scripts/backfill.ts",
     "distill": "tsx scripts/distill.ts",
+    "backfill:public": "tsx scripts/backfill-public.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

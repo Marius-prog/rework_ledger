@@ -24,7 +24,7 @@ export async function syncPrCommits(gh: CommitReader, repo: { id: number; full_n
 }
 
 /**
- * A correction is a reviewer's top-level comment on an agent PR, paired with the first later
+ * A correction is a human reviewer's top-level comment (AI reviewers such as Copilot are excluded) on an agent PR, paired with the first later
  * commit on that PR that changed the commented file. Threads with no such commit are skipped.
  */
 export async function extractCorrections(db: pg.Pool, repoId: number, prNumber: number): Promise<number> {
@@ -33,7 +33,8 @@ export async function extractCorrections(db: pg.Pool, repoId: number, prNumber: 
   if (!pr) return 0;
   const roots = (await db.query(
     `SELECT * FROM review_comments WHERE repo_id=$1 AND pr_number=$2 AND in_reply_to_id IS NULL
-       AND path IS NOT NULL AND reviewer_login <> $3 ORDER BY created_at`, [repoId, prNumber, pr.author_login])).rows;
+       AND path IS NOT NULL AND reviewer_login <> $3
+       AND reviewer_login NOT LIKE '%[bot]' AND reviewer_type IS DISTINCT FROM 'Bot' ORDER BY created_at`, [repoId, prNumber, pr.author_login])).rows;
   let stored = 0;
   for (const root of roots) {
     const fix = (await db.query(

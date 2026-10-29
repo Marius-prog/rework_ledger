@@ -8,7 +8,6 @@ export interface DetectInput {
 export interface Detection { isAgent: boolean; agentName: string | null; reason: string | null }
 
 const AGENT_LABELS = new Set(["agent-authored", "ai-generated", "agent", "ai-agent"]);
-const IGNORED_BOTS = ["dependabot", "renovate", "github-actions", "pre-commit-ci"];
 const KNOWN_AGENTS: [RegExp, string][] = [
   [/copilot/i, "copilot"], [/codex/i, "codex"], [/claude/i, "claude-code"],
   [/devin/i, "devin"], [/kiro/i, "kiro"], [/cursor/i, "cursor"], [/jules/i, "jules"],
@@ -23,9 +22,9 @@ function nameFrom(text: string): string | null {
 export function detectAgent(i: DetectInput): Detection {
   const login = i.authorLogin.toLowerCase();
   const isBot = i.authorType === "Bot" || login.endsWith("[bot]");
-  if (isBot && !IGNORED_BOTS.some((b) => login.includes(b))) {
-    return { isAgent: true, agentName: nameFrom(login) ?? login.replace(/\[bot\]$/, ""), reason: "bot_login" };
-  }
+  // Only known coding agents count by login. Dependency and release bots (dependabot, dotnet-maestro) are automation, not agents.
+  const botAgent = isBot ? nameFrom(login) : null;
+  if (botAgent) return { isAgent: true, agentName: botAgent, reason: "bot_login" };
   const label = i.labels.find((l) => AGENT_LABELS.has(l.toLowerCase()));
   if (label) return { isAgent: true, agentName: nameFrom(i.labels.join(" ")) ?? "unknown", reason: "label" };
   const texts = [i.body ?? "", ...(i.commitMessages ?? [])];
