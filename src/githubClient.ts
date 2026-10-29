@@ -1,4 +1,6 @@
-import { Octokit } from "@octokit/rest";
+import { Octokit as BaseOctokit } from "@octokit/rest";
+import { retry } from "@octokit/plugin-retry";
+import { throttling } from "@octokit/plugin-throttling";
 import { createAppAuth } from "@octokit/auth-app";
 import { pool } from "./db/pool.js";
 import { extractCorrections, syncPrCommits, type CommitReader } from "./extract.js";
@@ -8,9 +10,17 @@ import { backfillRepo, type GitHubReader } from "./backfill.js";
 
 const split = (full: string) => { const [owner, repo] = full.split("/"); return { owner, repo }; };
 
-export function octokitFor(installationId?: number): Octokit {
-  if (process.env.GITHUB_TOKEN) return new Octokit({ auth: process.env.GITHUB_TOKEN });
+// Retries 5xx errors and waits out primary and secondary rate limits (up to 3 times) instead of failing.
+const Octokit = BaseOctokit.plugin(retry, throttling);
+const throttle = {
+  onRateLimit: (_after: number, _opts: unknown, _o: unknown, retryCount: number) => retryCount < 3,
+  onSecondaryRateLimit: (_after: number, _opts: unknown, _o: unknown, retryCount: number) => retryCount < 3,
+};
+
+export function octokitFor(installationId?: number): InstanceType<typeof Octokit> {
+  if (process.env.GITHUB_TOKEN) return new Octokit({ auth: process.env.GITHUB_TOKEN, throttle });
   return new Octokit({
+    throttle,
     authStrategy: createAppAuth,
     auth: {
       appId: process.env.GITHUB_APP_ID!,

@@ -155,3 +155,4 @@ ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
 ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_event_at timestamptz;
 
 ALTER TABLE review_comments ADD COLUMN IF NOT EXISTS reviewer_type text;
+ALTER TABLE pull_requests ADD COLUMN IF NOT EXISTS backfilled_at timestamptz;

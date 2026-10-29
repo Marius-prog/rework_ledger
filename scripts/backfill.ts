@@ -25,6 +25,6 @@ for (const r of repos) {
     `SELECT count(*) FILTER (WHERE is_agent)::int agent, count(*)::int total,
             (SELECT count(*)::int FROM corrections WHERE repo_id=$1) corrections
        FROM pull_requests WHERE repo_id=$1`, [r.id])).rows[0];
-  console.log(`${r.full_name}: scanned ${n} PRs, ${s.agent}/${s.total} agent, ${s.corrections} corrections`);
+  console.log(`${r.full_name}: processed ${n.processed}, skipped ${n.skipped}, failed ${n.failed}, ${s.agent}/${s.total} agent, ${s.corrections} corrections`);
 }
 await pool.end();

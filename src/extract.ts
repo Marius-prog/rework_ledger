@@ -8,12 +8,25 @@ export interface CommitReader {
   getCommitFiles(repo: string, sha: string): Promise<{ filename: string; patch?: string }[]>;
 }
 
-/** Fetch and store a PR's commits and per-file patches. */
+const HUMAN_ROOT = `in_reply_to_id IS NULL AND path IS NOT NULL AND reviewer_login <> $3
+  AND reviewer_login NOT LIKE '%[bot]' AND reviewer_type IS DISTINCT FROM 'Bot'`;
+
+/**
+ * Fetch and store a PR's commits. Per-file patches are fetched only for commits made after the earliest
+ * human review comment, since earlier commits can never be a fix. PRs without human comments cost nothing.
+ */
 export async function syncPrCommits(gh: CommitReader, repo: { id: number; full_name: string }, prNumber: number) {
+  const first = (await pool.query(
+    `SELECT min(rc.created_at) t FROM review_comments rc JOIN pull_requests p ON p.repo_id=rc.repo_id AND p.number=rc.pr_number
+      WHERE rc.repo_id=$1 AND rc.pr_number=$2 AND rc.in_reply_to_id IS NULL AND rc.path IS NOT NULL
+        AND rc.reviewer_login <> p.author_login AND rc.reviewer_login NOT LIKE '%[bot]' AND rc.reviewer_type IS DISTINCT FROM 'Bot'`,
+    [repo.id, prNumber])).rows[0].t as Date | null;
+  if (!first) return;
   for (const c of await gh.listPrCommits(repo.full_name, prNumber)) {
     await pool.query(
       "INSERT INTO pr_commits (repo_id, pr_number, sha, message, committed_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING",
       [repo.id, prNumber, c.sha, c.message, c.date]);
+    if (new Date(c.date) <= first) continue;
     for (const f of await gh.getCommitFiles(repo.full_name, c.sha)) {
       if (!f.patch) continue;
       await pool.query(
@@ -32,9 +45,7 @@ export async function extractCorrections(db: pg.Pool, repoId: number, prNumber: 
     "SELECT author_login, agent_name FROM pull_requests WHERE repo_id=$1 AND number=$2 AND is_agent", [repoId, prNumber])).rows[0];
   if (!pr) return 0;
   const roots = (await db.query(
-    `SELECT * FROM review_comments WHERE repo_id=$1 AND pr_number=$2 AND in_reply_to_id IS NULL
-       AND path IS NOT NULL AND reviewer_login <> $3
-       AND reviewer_login NOT LIKE '%[bot]' AND reviewer_type IS DISTINCT FROM 'Bot' ORDER BY created_at`, [repoId, prNumber, pr.author_login])).rows;
+    `SELECT * FROM review_comments WHERE repo_id=$1 AND pr_number=$2 AND ${HUMAN_ROOT} ORDER BY created_at`, [repoId, prNumber, pr.author_login])).rows;
   let stored = 0;
   for (const root of roots) {
     const fix = (await db.query(
