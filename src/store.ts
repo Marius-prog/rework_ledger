@@ -68,3 +68,23 @@ export async function storePush(db: Db, repoId: number, payload: any) {
       [repoId, ref, d.agentName, d.reason]);
   }
 }
+
+/** Removes everything stored for an installation. Tables without a foreign key to repos are cleared explicitly. */
+export async function deleteInstallationData(db: pg.Pool, installationId: number) {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const repos = "(SELECT id FROM repos WHERE installation_id=$1)";
+    for (const t of ["corrections", "rules", "review_comments", "reviews", "commits", "pr_commits", "commit_files", "repo_policies"]) {
+      await client.query(`DELETE FROM ${t} WHERE repo_id IN ${repos}`, [installationId]);
+    }
+    await client.query("DELETE FROM user_installations WHERE installation_id=$1", [installationId]);
+    await client.query("DELETE FROM installations WHERE id=$1", [installationId]); // cascades repos and pull_requests
+    await client.query("COMMIT");
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}

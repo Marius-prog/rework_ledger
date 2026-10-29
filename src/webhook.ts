@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { pool } from "./db/pool.js";
-import { storePullRequest, storePush, storeReview, storeReviewComment, upsertInstallation, upsertRepo } from "./store.js";
+import { deleteInstallationData, storePullRequest, storePush, storeReview, storeReviewComment, upsertInstallation, upsertRepo } from "./store.js";
 
 export function verifySignature(secret: string, body: string, header: string | undefined): boolean {
   if (!header?.startsWith("sha256=")) return false;
@@ -22,7 +22,7 @@ export async function handleEvent(event: string, p: any, hooks: Hooks = {}): Pro
     case "installation":
     case "installation_repositories": {
       if (p.action === "deleted") {
-        await pool.query("DELETE FROM installations WHERE id=$1", [p.installation.id]);
+        await deleteInstallationData(pool, p.installation.id);
         return "installation removed";
       }
       await upsertInstallation(pool, p.installation.id, p.installation.account.login);
