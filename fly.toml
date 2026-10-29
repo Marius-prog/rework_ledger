@@ -1,0 +1,33 @@
+# Set `app` to your own name, then: fly launch --no-deploy --copy-config
+app = "rework-ledger"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+  APP_URL = "https://rework-ledger.fly.dev"
+
+[deploy]
+  # Applies src/db/schema.sql (idempotent) before each release
+  release_command = "npm run migrate"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"   # the weekly job runs in-process, so one machine must stay up
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
