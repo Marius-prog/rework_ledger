@@ -11,7 +11,9 @@ export function verifySignature(secret: string, body: string, header: string | u
 
 export type Backfill = (installationId: number, repos: { id: number; full_name: string }[]) => Promise<void>;
 
-export async function handleEvent(event: string, p: any, backfill?: Backfill): Promise<string> {
+export type OnMerged = (installationId: number, repo: { id: number; full_name: string }, prNumber: number) => Promise<void>;
+
+export async function handleEvent(event: string, p: any, backfill?: Backfill, onMerged?: OnMerged): Promise<string> {
   switch (event) {
     case "installation":
     case "installation_repositories": {
@@ -29,6 +31,9 @@ export async function handleEvent(event: string, p: any, backfill?: Backfill): P
       await upsertInstallation(pool, p.installation.id, p.repository.owner.login);
       await upsertRepo(pool, p.repository.id, p.installation.id, p.repository.full_name);
       await storePullRequest(pool, p.repository.id, p.pull_request);
+      if (onMerged && p.action === "closed" && p.pull_request.merged_at) {
+        void onMerged(p.installation.id, p.repository, p.pull_request.number).catch((e) => console.error("extract failed", e));
+      }
       return "pr stored";
     case "pull_request_review":
       await storeReview(pool, p.repository.id, p.pull_request.number, p.review);

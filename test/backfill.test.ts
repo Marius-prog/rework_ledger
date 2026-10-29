@@ -16,7 +16,7 @@ const gh: GitHubReader = {
   listReviewComments: async (_r, n) => n === 3 ? [{ id: 20 + n, user: { login: "bob" }, body: "fix", path: "a.ts", diff_hunk: "@@", created_at: "2025-10-21T00:00:00Z" }] : [],
 };
 
-beforeEach(async () => { await pool.query("TRUNCATE installations, reviews, review_comments, commits CASCADE"); await upsertInstallation(pool, 1, "acme"); await upsertRepo(pool, 1, 1, "acme/api"); });
+beforeEach(async () => { await pool.query("TRUNCATE installations, reviews, review_comments, commits, pr_commits, commit_files, corrections CASCADE"); await upsertInstallation(pool, 1, "acme"); await upsertRepo(pool, 1, 1, "acme/api"); });
 afterAll(() => pool.end());
 
 it("backfills only the last 90 days and detects agents via commit trailers", async () => {
@@ -25,4 +25,17 @@ it("backfills only the last 90 days and detects agents via commit trailers", asy
   const rows = (await pool.query("SELECT number, is_agent, agent_name FROM pull_requests ORDER BY number")).rows;
   expect(rows).toEqual([{ number: 2, is_agent: true, agent_name: "claude-code" }, { number: 3, is_agent: true, agent_name: "codex" }]);
   expect((await pool.query("SELECT count(*)::int c FROM review_comments")).rows[0].c).toBe(1);
+});
+
+import { comments, commits, files, pr as fixturePr } from "./fixtures/agent-pr.js";
+it("backfill extracts corrections end to end for an agent PR", async () => {
+  const reader: GitHubReader = {
+    listPulls: async () => [fixturePr], getPull: async () => fixturePr,
+    listCommitMessages: async () => commits.map((c) => c.message),
+    listReviews: async () => [], listReviewComments: async () => comments,
+    listPrCommits: async () => commits, getCommitFiles: async (_r, sha) => files[sha] ?? [],
+  };
+  await backfillRepo(reader, { id: 1, full_name: "acme/api" }, 90, new Date("2025-10-30T00:00:00Z"));
+  const rows = (await pool.query("SELECT comment_id, fix_sha FROM corrections")).rows;
+  expect(rows).toEqual([{ comment_id: "101", fix_sha: "f2" }]);
 });

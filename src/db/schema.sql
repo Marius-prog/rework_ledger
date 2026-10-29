@@ -73,3 +73,36 @@ CREATE TABLE IF NOT EXISTS commits (
   committed_at timestamptz NOT NULL,
   PRIMARY KEY (repo_id, sha)
 );
+
+ALTER TABLE review_comments ADD COLUMN IF NOT EXISTS line int;
+
+CREATE TABLE IF NOT EXISTS pr_commits (
+  repo_id bigint NOT NULL,
+  pr_number int NOT NULL,
+  sha text NOT NULL,
+  message text NOT NULL,
+  committed_at timestamptz NOT NULL,
+  PRIMARY KEY (repo_id, pr_number, sha)
+);
+
+CREATE TABLE IF NOT EXISTS commit_files (
+  repo_id bigint NOT NULL,
+  sha text NOT NULL,
+  path text NOT NULL,
+  patch text NOT NULL,
+  PRIMARY KEY (repo_id, sha, path)
+);
+
+CREATE TABLE IF NOT EXISTS corrections (
+  id serial PRIMARY KEY,
+  repo_id bigint NOT NULL,
+  pr_number int NOT NULL,
+  comment_id bigint NOT NULL UNIQUE,
+  agent_name text,
+  file text NOT NULL,
+  comment text NOT NULL,
+  before_hunk text NOT NULL,
+  after_hunk text NOT NULL,
+  fix_sha text NOT NULL,
+  created_at timestamptz NOT NULL
+);

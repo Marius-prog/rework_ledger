@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { pool } from "./db/pool.js";
 import { landing } from "./landing.js";
 import { handleEvent, verifySignature, type Backfill } from "./webhook.js";
-import { backfillInstallation } from "./githubClient.js";
+import { backfillInstallation, extractOnMerge } from "./githubClient.js";
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -29,5 +29,5 @@ app.post("/webhooks/github", async (c) => {
   const ins = await pool.query(
     "INSERT INTO webhook_deliveries (delivery_id, event) VALUES ($1,$2) ON CONFLICT DO NOTHING", [delivery, event]);
   if (!ins.rowCount) return c.text("duplicate");
-  return c.text(await handleEvent(event, JSON.parse(raw), backfill));
+  return c.text(await handleEvent(event, JSON.parse(raw), backfill, extractOnMerge));
 });
