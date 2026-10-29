@@ -37,8 +37,10 @@ We do not read or store your full source tree, issues, or repos you did not sele
 
 ## Removing your data
 
-- **Uninstall the app.** All stored data for that installation is deleted: PRs, reviews, comments, commits, patches, corrections, rules, and policies.
-- **Removing a single repo from the install does not purge it yet.** Email us and we delete it.
+- **Remove a repo from the install.** All stored data for that repo is deleted.
+- **Uninstall the app.** All stored data for the installation is deleted.
+
+Deleted data covers PRs, reviews, comments, commits, patches, corrections, rules, and policies.
 
 ## What the report does and does not tell you
 

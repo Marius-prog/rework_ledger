@@ -70,17 +70,13 @@ export async function storePush(db: Db, repoId: number, payload: any) {
   }
 }
 
-/** Removes everything stored for an installation. Tables without a foreign key to repos are cleared explicitly. */
-export async function deleteInstallationData(db: pg.Pool, installationId: number) {
+const REPO_TABLES = ["corrections", "rules", "review_comments", "reviews", "commits", "pr_commits", "commit_files", "repo_policies", "pull_requests"];
+
+async function inTransaction(db: pg.Pool, fn: (c: pg.PoolClient) => Promise<void>) {
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    const repos = "(SELECT id FROM repos WHERE installation_id=$1)";
-    for (const t of ["corrections", "rules", "review_comments", "reviews", "commits", "pr_commits", "commit_files", "repo_policies"]) {
-      await client.query(`DELETE FROM ${t} WHERE repo_id IN ${repos}`, [installationId]);
-    }
-    await client.query("DELETE FROM user_installations WHERE installation_id=$1", [installationId]);
-    await client.query("DELETE FROM installations WHERE id=$1", [installationId]); // cascades repos and pull_requests
+    await fn(client);
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -88,4 +84,21 @@ export async function deleteInstallationData(db: pg.Pool, installationId: number
   } finally {
     client.release();
   }
+}
+
+/** Removes everything stored for the given repos. Tables without a foreign key to repos are cleared explicitly. */
+export async function deleteRepoData(db: pg.Pool, repoIds: number[]) {
+  if (!repoIds.length) return;
+  await inTransaction(db, async (c) => {
+    for (const t of REPO_TABLES) await c.query(`DELETE FROM ${t} WHERE repo_id = ANY($1::bigint[])`, [repoIds]);
+    await c.query("DELETE FROM repos WHERE id = ANY($1::bigint[])", [repoIds]);
+  });
+}
+
+/** Removes everything stored for an installation and its repos. */
+export async function deleteInstallationData(db: pg.Pool, installationId: number) {
+  const ids = (await db.query("SELECT id FROM repos WHERE installation_id=$1", [installationId])).rows.map((r) => Number(r.id));
+  await deleteRepoData(db, ids);
+  await db.query("DELETE FROM user_installations WHERE installation_id=$1", [installationId]);
+  await db.query("DELETE FROM installations WHERE id=$1", [installationId]);
 }

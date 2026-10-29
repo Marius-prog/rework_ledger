@@ -33,3 +33,15 @@ it("uninstall removes all stored data for that installation and leaves others in
   }
   expect((await pool.query("SELECT id FROM installations")).rows.map((r) => Number(r.id))).toEqual([2]);
 });
+
+it("removing one repo from an install purges that repo only", async () => {
+  await pool.query("INSERT INTO repos (id, installation_id, full_name) VALUES (11,1,'o/r2')");
+  await pool.query("INSERT INTO rules (id, repo_id, title, body) VALUES (11,11,'t','b')");
+  const out = await handleEvent("installation_repositories", { action: "removed", installation: { id: 1, account: { login: "x" } },
+    repositories_added: [], repositories_removed: [{ id: 10, full_name: "o/r" }] });
+  expect(out).toBe("purged 1 repos");
+  for (const t of TABLES) expect(await count(t, [10]), `${t} for removed repo`).toBe(0);
+  expect(await count("rules", [11])).toBe(1);   // sibling repo in the same installation kept
+  expect(await count("rules", [20])).toBe(1);   // other installation kept
+  expect(await count("repos", [11])).toBe(1);
+});
