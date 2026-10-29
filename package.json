@@ -10,6 +10,7 @@
     "backfill": "tsx scripts/backfill.ts",
     "distill": "tsx scripts/distill.ts",
     "backfill:public": "tsx scripts/backfill-public.ts",
+    "report": "tsx scripts/report.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

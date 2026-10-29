@@ -4,14 +4,14 @@ import { cosine } from "./cluster.js";
 export interface AgentRework { agent: string; prs: number; reworked: number; rate: number }
 
 /** An agent PR counts as reworked if it has at least one extracted correction or a changes-requested review. */
-export async function reworkByAgent(db: pg.Pool, since: Date, installationIds: number[] | null = null): Promise<AgentRework[]> {
+export async function reworkByAgent(db: pg.Pool, since: Date, installationIds: number[] | null = null, repoId: number | null = null): Promise<AgentRework[]> {
   const rows = (await db.query(
     `SELECT coalesce(p.agent_name,'unknown') agent, count(*)::int prs,
        (count(*) FILTER (WHERE EXISTS (SELECT 1 FROM corrections c WHERE c.repo_id=p.repo_id AND c.pr_number=p.number)
                             OR EXISTS (SELECT 1 FROM reviews v WHERE v.repo_id=p.repo_id AND v.pr_number=p.number AND v.state='changes_requested')))::int reworked
        FROM pull_requests p JOIN repos rp ON rp.id=p.repo_id
-      WHERE p.is_agent AND p.created_at >= $1 AND ($2::bigint[] IS NULL OR rp.installation_id = ANY($2))
-      GROUP BY 1 ORDER BY prs DESC, agent`, [since, installationIds])).rows;
+      WHERE p.is_agent AND p.created_at >= $1 AND ($2::bigint[] IS NULL OR rp.installation_id = ANY($2)) AND ($3::bigint IS NULL OR p.repo_id=$3)
+      GROUP BY 1 ORDER BY prs DESC, agent`, [since, installationIds, repoId])).rows;
   return rows.map((r) => ({ ...r, rate: r.prs ? r.reworked / r.prs : 0 }));
 }
 
@@ -42,4 +42,16 @@ export async function ruleHits(db: pg.Pool, since: Date, installationIds: number
     out.push({ title: r.title, hits: later.filter((x) => cosine(x.embedding, centroid) >= threshold).length });
   }
   return out.sort((a, b) => b.hits - a.hits);
+}
+
+export interface WeeklyRework { week: string; prs: number; reworked: number; rate: number }
+
+/** Agent PRs per week (by creation date) and how many needed human rework. Weeks are Monday-based. */
+export async function reworkByWeek(db: pg.Pool, repoId: number, since: Date): Promise<WeeklyRework[]> {
+  const rows = (await db.query(
+    `SELECT to_char(date_trunc('week', p.created_at), 'YYYY-MM-DD') week, count(*)::int prs,
+       (count(*) FILTER (WHERE EXISTS (SELECT 1 FROM corrections c WHERE c.repo_id=p.repo_id AND c.pr_number=p.number)
+                            OR EXISTS (SELECT 1 FROM reviews v WHERE v.repo_id=p.repo_id AND v.pr_number=p.number AND v.state='changes_requested')))::int reworked
+       FROM pull_requests p WHERE p.is_agent AND p.repo_id=$1 AND p.created_at >= $2 GROUP BY 1 ORDER BY 1`, [repoId, since])).rows;
+  return rows.map((r) => ({ ...r, rate: r.prs ? r.reworked / r.prs : 0 }));
 }
