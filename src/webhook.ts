@@ -1,0 +1,45 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+import { pool } from "./db/pool.js";
+import { storePullRequest, storePush, storeReview, storeReviewComment, upsertInstallation, upsertRepo } from "./store.js";
+
+export function verifySignature(secret: string, body: string, header: string | undefined): boolean {
+  if (!header?.startsWith("sha256=")) return false;
+  const expected = createHmac("sha256", secret).update(body).digest();
+  const given = Buffer.from(header.slice(7), "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+export type Backfill = (installationId: number, repos: { id: number; full_name: string }[]) => Promise<void>;
+
+export async function handleEvent(event: string, p: any, backfill?: Backfill): Promise<string> {
+  switch (event) {
+    case "installation":
+    case "installation_repositories": {
+      if (p.action === "deleted") {
+        await pool.query("DELETE FROM installations WHERE id=$1", [p.installation.id]);
+        return "installation removed";
+      }
+      await upsertInstallation(pool, p.installation.id, p.installation.account.login);
+      const repos = p.repositories ?? p.repositories_added ?? [];
+      for (const r of repos) await upsertRepo(pool, r.id, p.installation.id, r.full_name);
+      if (backfill && repos.length) void backfill(p.installation.id, repos).catch((e) => console.error("backfill failed", e));
+      return `installed ${repos.length} repos`;
+    }
+    case "pull_request":
+      await upsertInstallation(pool, p.installation.id, p.repository.owner.login);
+      await upsertRepo(pool, p.repository.id, p.installation.id, p.repository.full_name);
+      await storePullRequest(pool, p.repository.id, p.pull_request);
+      return "pr stored";
+    case "pull_request_review":
+      await storeReview(pool, p.repository.id, p.pull_request.number, p.review);
+      return "review stored";
+    case "pull_request_review_comment":
+      await storeReviewComment(pool, p.repository.id, p.pull_request.number, p.comment);
+      return "comment stored";
+    case "push":
+      await storePush(pool, p.repository.id, p);
+      return "push stored";
+    default:
+      return "ignored";
+  }
+}
