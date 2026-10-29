@@ -64,7 +64,7 @@ describe("webhook", () => {
     let called: any;
     const { handleEvent } = await import("../src/webhook.js");
     await handleEvent("installation", { action: "created", installation: { id: 99, account: { login: "acme" } },
-      repositories: [{ id: 1, full_name: "acme/api" }] }, async (id, repos) => { called = { id, repos }; });
+      repositories: [{ id: 1, full_name: "acme/api" }] }, { backfill: async (id, repos) => { called = { id, repos }; } });
     expect(called.id).toBe(99);
     expect((await pool.query("SELECT full_name FROM repos")).rows[0].full_name).toBe("acme/api");
   });

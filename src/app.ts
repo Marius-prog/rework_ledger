@@ -3,7 +3,7 @@ import { pool } from "./db/pool.js";
 import { landing } from "./landing.js";
 import { dashboard } from "./dashboard.js";
 import { handleEvent, verifySignature, type Backfill } from "./webhook.js";
-import { backfillInstallation, extractOnMerge } from "./githubClient.js";
+import { backfillInstallation, checkOnEvent, extractOnMerge } from "./githubClient.js";
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -30,7 +30,7 @@ app.post("/webhooks/github", async (c) => {
   const ins = await pool.query(
     "INSERT INTO webhook_deliveries (delivery_id, event) VALUES ($1,$2) ON CONFLICT DO NOTHING", [delivery, event]);
   if (!ins.rowCount) return c.text("duplicate");
-  return c.text(await handleEvent(event, JSON.parse(raw), backfill, extractOnMerge));
+  return c.text(await handleEvent(event, JSON.parse(raw), { backfill, onMerged: extractOnMerge, onCheck: process.env.GITHUB_APP_ID ? checkOnEvent : undefined }));
 });
 
 app.route("/app", dashboard());

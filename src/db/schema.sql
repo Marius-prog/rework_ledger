@@ -119,3 +119,14 @@ CREATE TABLE IF NOT EXISTS rules (
 );
 ALTER TABLE corrections ADD COLUMN IF NOT EXISTS embedding real[];
 ALTER TABLE corrections ADD COLUMN IF NOT EXISTS rule_id int REFERENCES rules(id) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS repo_policies (
+  repo_id bigint PRIMARY KEY,
+  tests_enabled boolean NOT NULL DEFAULT true,
+  protected_enabled boolean NOT NULL DEFAULT true,
+  protected_paths text[] NOT NULL DEFAULT '{}',
+  size_enabled boolean NOT NULL DEFAULT true,
+  max_diff_lines int NOT NULL DEFAULT 800
+);
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS digest_email text;
+CREATE TABLE IF NOT EXISTS job_runs (name text PRIMARY KEY, last_run timestamptz NOT NULL);

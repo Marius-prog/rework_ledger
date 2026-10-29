@@ -13,7 +13,11 @@ export type Backfill = (installationId: number, repos: { id: number; full_name: 
 
 export type OnMerged = (installationId: number, repo: { id: number; full_name: string }, prNumber: number) => Promise<void>;
 
-export async function handleEvent(event: string, p: any, backfill?: Backfill, onMerged?: OnMerged): Promise<string> {
+export type OnCheck = (installationId: number, repo: { id: number; full_name: string }, prNumber: number) => Promise<void>;
+export interface Hooks { backfill?: Backfill; onMerged?: OnMerged; onCheck?: OnCheck }
+
+export async function handleEvent(event: string, p: any, hooks: Hooks = {}): Promise<string> {
+  const { backfill, onMerged, onCheck } = hooks;
   switch (event) {
     case "installation":
     case "installation_repositories": {
@@ -34,9 +38,15 @@ export async function handleEvent(event: string, p: any, backfill?: Backfill, on
       if (onMerged && p.action === "closed" && p.pull_request.merged_at) {
         void onMerged(p.installation.id, p.repository, p.pull_request.number).catch((e) => console.error("extract failed", e));
       }
+      if (onCheck && ["opened", "synchronize", "reopened", "ready_for_review"].includes(p.action)) {
+        void onCheck(p.installation.id, p.repository, p.pull_request.number).catch((e) => console.error("check failed", e));
+      }
       return "pr stored";
     case "pull_request_review":
       await storeReview(pool, p.repository.id, p.pull_request.number, p.review);
+      if (onCheck && p.installation && ["submitted", "dismissed"].includes(p.action)) {
+        void onCheck(p.installation.id, p.repository, p.pull_request.number).catch((e) => console.error("check failed", e));
+      }
       return "review stored";
     case "pull_request_review_comment":
       await storeReviewComment(pool, p.repository.id, p.pull_request.number, p.comment);

@@ -2,6 +2,7 @@ import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import { pool } from "./db/pool.js";
 import { extractCorrections, syncPrCommits, type CommitReader } from "./extract.js";
+import { runCheck, type ChecksClient } from "./checks.js";
 import type { RepoWriter } from "./rulesPr.js";
 import { backfillRepo, type GitHubReader } from "./backfill.js";
 
@@ -77,4 +78,19 @@ export function writerFor(installationId?: number): RepoWriter {
       return (await o.pulls.create({ ...split(repo), head, base, title, body })).data.html_url;
     },
   };
+}
+
+/** Check runs require GitHub App auth. A personal token cannot create them. */
+export function checksClientFor(installationId: number): ChecksClient {
+  const o = octokitFor(installationId);
+  return {
+    listPrFiles: async (r, n) => (await o.paginate(o.pulls.listFiles, { ...split(r), pull_number: n })).map((f) => f.filename),
+    async createCheckRun(r, p) {
+      await o.checks.create({ ...split(r), name: p.name, head_sha: p.headSha, status: "completed", conclusion: p.conclusion,
+        output: { title: p.title, summary: p.summary } });
+    },
+  };
+}
+export async function checkOnEvent(installationId: number, repo: { id: number; full_name: string }, prNumber: number) {
+  await runCheck(pool, checksClientFor(installationId), repo, prNumber);
 }
