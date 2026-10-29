@@ -1,0 +1,14 @@
+{
+  "name": "Rework Ledger",
+  "url": "http://localhost:3000",
+  "hook_attributes": { "url": "http://localhost:3000/webhooks/github" },
+  "redirect_url": "http://localhost:3000/github/manifest/callback",
+  "public": false,
+  "default_permissions": {
+    "metadata": "read",
+    "contents": "read",
+    "pull_requests": "read",
+    "checks": "write"
+  },
+  "default_events": ["pull_request", "pull_request_review", "pull_request_review_comment", "push"]
+}

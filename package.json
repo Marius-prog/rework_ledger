@@ -1,0 +1,27 @@
+{
+  "name": "rework-ledger",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "migrate": "tsx src/db/migrate.ts",
+    "stripe:setup": "tsx scripts/stripe-setup.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.0.0",
+    "dotenv": "*",
+    "hono": "*",
+    "pg": "*",
+    "stripe": "*"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "@types/pg": "*",
+    "tsx": "*",
+    "typescript": "*",
+    "vitest": "*"
+  }
+}
