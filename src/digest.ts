@@ -19,7 +19,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 export async function buildDigest(db: pg.Pool, installationId: number, now = new Date()) {
   const since = new Date(now.getTime() - 7 * 86400_000);
   const [agents, top, hits] = await Promise.all([
-    reworkByAgent(db, since, installationId), topRepeated(db, since, installationId), ruleHits(db, since, installationId)]);
+    reworkByAgent(db, since, [installationId]), topRepeated(db, since, [installationId]), ruleHits(db, since, [installationId])]);
   if (!agents.length && !top.length) return null;
   const lines = [
     "Rework rate by agent (PRs opened in the last 7 days)",
@@ -38,7 +38,7 @@ export async function buildDigest(db: pg.Pool, installationId: number, now = new
 
 export async function sendDigests(db: pg.Pool, mailer: Mailer, now = new Date()): Promise<number> {
   let sent = 0;
-  for (const i of (await db.query("SELECT id, digest_email FROM installations WHERE digest_email IS NOT NULL")).rows) {
+  for (const i of (await db.query("SELECT id, digest_email FROM installations WHERE digest_email IS NOT NULL AND subscription_status IN ('trialing','active','past_due')")).rows) {
     const d = await buildDigest(db, i.id, now);
     if (!d) continue;
     await mailer.send({ to: i.digest_email, ...d });

@@ -14,7 +14,7 @@ input,button{font:inherit;padding:8px}.msg{color:#0a6}</style></head><body>
 <tr><td>Starter</td><td>$39/mo</td><td>2 repos, correction capture, weekly rework report</td></tr>
 <tr><td>Team</td><td>$149/mo</td><td>15 repos, rule distillation, AGENTS.md PRs, policy checks, eval JSONL export</td></tr>
 <tr><td>Business</td><td>$499/mo</td><td>Unlimited repos, audit export, per-model comparison, priority support</td></tr></table>
-<p>14-day trial on all plans.</p>
+<p>14-day trial on all plans. <a href="/login">Sign in with GitHub to start</a></p>
 <h2>Join the waitlist</h2>
 <form method="post" action="/waitlist"><input type="email" name="email" placeholder="you@company.com" required> <button>Join</button></form>
 <p class="msg">${message}</p></body></html>`;

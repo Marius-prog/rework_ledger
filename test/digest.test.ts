@@ -9,7 +9,7 @@ const day = (n: number) => new Date(now.getTime() - n * 86400_000).toISOString()
 
 beforeEach(async () => {
   await pool.query("TRUNCATE installations, rules, corrections, reviews, job_runs CASCADE");
-  await pool.query("INSERT INTO installations (id, account_login, digest_email) VALUES (1,'acme','lead@acme.com')");
+  await pool.query("INSERT INTO installations (id, account_login, digest_email, plan, subscription_status) VALUES (1,'acme','lead@acme.com','team','trialing')");
   await pool.query("INSERT INTO repos (id, installation_id, full_name) VALUES (1,1,'acme/api')");
   const pr = (n: number, agent: string | null, age: number) => pool.query(
     `INSERT INTO pull_requests (repo_id, number, author_login, title, state, head_ref, head_sha, is_agent, agent_name, created_at)
@@ -28,12 +28,12 @@ afterAll(() => pool.end());
 
 describe("stats", () => {
   it("rework rate per agent counts corrections or changes-requested, only agent PRs in window", async () => {
-    expect(await reworkByAgent(pool, new Date(now.getTime() - 7 * 86400_000), 1)).toEqual([
+    expect(await reworkByAgent(pool, new Date(now.getTime() - 7 * 86400_000), [1])).toEqual([
       { agent: "claude-code", prs: 2, reworked: 2, rate: 1 }, { agent: "codex", prs: 1, reworked: 1, rate: 1 }]);
-    expect((await reworkByAgent(pool, new Date(now.getTime() - 30 * 86400_000), 1)).find((a) => a.agent === "codex")).toMatchObject({ prs: 2, reworked: 1, rate: 0.5 });
+    expect((await reworkByAgent(pool, new Date(now.getTime() - 30 * 86400_000), [1])).find((a) => a.agent === "codex")).toMatchObject({ prs: 2, reworked: 1, rate: 0.5 });
   });
   it("rule hits count only similar corrections made after approval", async () => {
-    expect(await ruleHits(pool, new Date(now.getTime() - 7 * 86400_000), 1)).toEqual([{ title: "Use billing client", hits: 1 }]);
+    expect(await ruleHits(pool, new Date(now.getTime() - 7 * 86400_000), [1])).toEqual([{ title: "Use billing client", hits: 1 }]);
   });
 });
 
@@ -50,7 +50,7 @@ describe("digest", () => {
     expect(await buildDigest(pool, 2, now)).toBeNull();
   });
   it("sends only to installations with an email", async () => {
-    await pool.query("INSERT INTO installations (id, account_login) VALUES (3,'noemail')");
+    await pool.query("INSERT INTO installations (id, account_login, plan, subscription_status) VALUES (3,'noemail','team','active')");
     const sent: any[] = [];
     expect(await sendDigests(pool, { send: async (m) => { sent.push(m); } }, now)).toBe(1);
     expect(sent[0].to).toBe("lead@acme.com");

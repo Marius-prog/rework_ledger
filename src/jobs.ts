@@ -20,7 +20,8 @@ export async function claimWeekly(db: pg.Pool, name: string, now: Date): Promise
 export async function weeklyJob(db: pg.Pool, deps: { ai?: Ai; mailer?: Mailer }, now = new Date()) {
   if (!(await claimWeekly(db, "weekly", now))) return { ran: false, rules: 0, digests: 0 };
   let rules = 0;
-  if (deps.ai) for (const r of (await db.query("SELECT id FROM repos")).rows) rules += await distillRepo(db, deps.ai, r.id);
+  if (deps.ai) for (const r of (await db.query(
+    "SELECT r.id FROM repos r JOIN installations i ON i.id=r.installation_id WHERE i.plan IN ('team','business') AND i.subscription_status IN ('trialing','active','past_due')")).rows) rules += await distillRepo(db, deps.ai, r.id);
   const digests = deps.mailer ? await sendDigests(db, deps.mailer, now) : 0;
   return { ran: true, rules, digests };
 }

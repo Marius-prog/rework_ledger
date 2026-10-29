@@ -86,7 +86,9 @@ describe("dashboard + PR", () => {
   beforeEach(() => { calls.length = 0; });
 
   it("requires auth", async () => {
-    expect((await app.request("/app")).status).toBe(401);
+    const anon = await app.request("/app");
+    expect(anon.status).toBe(302);
+    expect(anon.headers.get("location")).toBe("/login");
     expect((await app.request("/app", { headers: auth })).status).toBe(200);
   });
 

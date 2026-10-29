@@ -130,3 +130,26 @@ CREATE TABLE IF NOT EXISTS repo_policies (
 );
 ALTER TABLE installations ADD COLUMN IF NOT EXISTS digest_email text;
 CREATE TABLE IF NOT EXISTS job_runs (name text PRIMARY KEY, last_run timestamptz NOT NULL);
+
+CREATE TABLE IF NOT EXISTS users (
+  id serial PRIMARY KEY,
+  github_id bigint NOT NULL UNIQUE,
+  login text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash text PRIMARY KEY,
+  user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at timestamptz NOT NULL
+);
+CREATE TABLE IF NOT EXISTS user_installations (
+  user_id int NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  installation_id bigint NOT NULL,
+  PRIMARY KEY (user_id, installation_id)
+);
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS plan text CHECK (plan IN ('starter','team','business'));
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS subscription_status text;
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS trial_ends_at timestamptz;
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_customer_id text;
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_subscription_id text;
+ALTER TABLE installations ADD COLUMN IF NOT EXISTS stripe_event_at timestamptz;
